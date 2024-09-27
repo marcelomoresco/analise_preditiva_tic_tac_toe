@@ -98,12 +98,12 @@ class TicTacToeModel:
                 self.train_model()
                 print(f"finalizou treinamento {self.max_games} jogos.")
             else:
-                self.window.after(1000, self.play_turn)
+                self.window.after(10, self.play_turn)
             return
 
         # Troca o jogador
         self.current_player = "O" if self.current_player == "X" else "X"
-        self.window.after(1000, self.play_turn)
+        self.window.after(10, self.play_turn)
 
     def train_model(self):
         """Treina o modelo após atingir o número de jogos necessários."""
@@ -227,7 +227,7 @@ class TicTacToeModel:
         self.info_label = tk.Label(self.window, text=f"Treinando... Jogos: {self.games_played}/{self.max_games}", font=("Helvetica", 16))
         self.info_label.grid(row=3, column=0, columnspan=3, pady=20)
 
-        self.window.after(1000, self.play_turn)
+        self.window.after(10, self.play_turn)
         self.window.mainloop()
 
     def update_info_label(self):
