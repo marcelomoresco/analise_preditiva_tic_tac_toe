@@ -128,11 +128,11 @@ class TicTacToeModel:
 
     def get_model_and_params(self):
         if self.model_type == "random_forest":
-            clf = RandomForestClassifier(n_estimators=100, min_samples_split=2, min_samples_leaf=1, max_depth=None)
+            clf = RandomForestClassifier()
             params = {
-                'n_estimators': [100, 200, 300],
-                'max_depth': [None, 5, 10, 15],
-                'min_samples_split': [2, 5, 10],
+               'n_estimators': [50, 100],
+                'max_depth': [5, 10, 15, 20, None],
+                'min_samples_split': [2, 5, 10, 20],
                 'min_samples_leaf': [1, 2, 5]
             }
             model_filename = 'random_forest_model.pkl'
@@ -140,7 +140,8 @@ class TicTacToeModel:
             clf = DecisionTreeClassifier()
             params = {
                 'max_depth': [None, 5, 10, 15],
-                'min_samples_split': [2, 5, 10]
+                'min_samples_split': [2, 5, 10],
+                'class_weight': [None, 'balanced']
             }
             model_filename = 'decision_tree_model.pkl'
         return clf, params, model_filename
