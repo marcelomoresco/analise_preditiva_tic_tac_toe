@@ -48,24 +48,31 @@ class TicTacToeModel:
         })
 
     def auto_move(self):
-        """Escolhe o movimento automaticamente, usando o modelo treinado ou aleatoriamente."""
+        """Escolhe o movimento automaticamente, usando o modelo treinado ou regras básicas."""
         if self.model and len(self.game_data) > 10:
-            # Transforma o estado do tabuleiro em números
             board_state = [1 if v == "X" else -1 if v == "O" else 0 for v in self.board]
-            if self.model_type == "decision_tree_regressor":
-                predicted_move = int(self.model.predict([board_state])[0])  # Para regressão, converte o valor contínuo para inteiro
-            else:
-                predicted_move = self.model.predict([board_state])[0]  # Classificação
-
-            # Verifica se o movimento é válido
+            predicted_move = self.model.predict([board_state])[0]
             if self.board[predicted_move] == " ":
                 return predicted_move
             else:
                 available_moves = [i for i in range(9) if self.board[i] == " "]
                 return random.choice(available_moves)
         else:
-            # Se o modelo não está treinado, faz uma jogada aleatória
             available_moves = [i for i in range(9) if self.board[i] == " "]
+            
+            # pega o centro
+            if self.board[4] == " ":
+                return 4
+            
+            # bloquear o oponente ou vencer
+            for i in available_moves:
+                self.board[i] = self.current_player
+                if self.check_winner() == self.current_player:
+                    self.board[i] = " "
+                    return i
+                self.board[i] = " "
+            
+            # aleatória se não houver estratégia óbvia
             return random.choice(available_moves)
 
     def play_turn(self):
