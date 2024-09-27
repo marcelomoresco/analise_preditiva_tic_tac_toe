@@ -1,29 +1,28 @@
 import pickle
 import tkinter as tk
 import random
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, mean_squared_error, r2_score
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import GridSearchCV, train_test_split
 import pandas as pd
 
 class TicTacToeModel:
-    def __init__(self, max_games=10, model_type="random_forest"):
+    def __init__(self, max_games=500, model_type="random_forest"):
         self.current_player = "X"
         self.board = [" " for _ in range(9)]
         self.buttons = []
         self.game_data = []
-        self.model = None  # Modelo para prever jogadas
+        self.model = None
         self.games_played = 0
         self.max_games = max_games
-        self.min_training_games = 50
-        self.model_type = model_type  # "random_forest", "decision_tree", "decision_tree_regressor"
+        self.min_training_games = 100
+        self.model_type = model_type
         self.window = None
-        self.info_label = None  # Para mostrar as informações de progresso
-        self.accuracy = None  # Para armazenar a acurácia após o treinamento
+        self.info_label = None
+        self.accuracy = None
 
     def check_winner(self):
-        """Verifica as condições de vitória."""
         win_conditions = [(0, 1, 2), (3, 4, 5), (6, 7, 8),
                           (0, 3, 6), (1, 4, 7), (2, 5, 8),
                           (0, 4, 8), (2, 4, 6)]
@@ -35,14 +34,12 @@ class TicTacToeModel:
         return None
 
     def reset_game(self):
-        """Reseta o tabuleiro para iniciar um novo jogo."""
         self.current_player = "X"
         self.board = [" " for _ in range(9)]
         for button in self.buttons:
             button.config(text=" ", state=tk.NORMAL, bg='#fafafa')
 
     def record_data(self, move):
-        """Grava o estado do tabuleiro e a jogada atual."""
         self.game_data.append({
             "board": self.board[:],
             "move": move,
@@ -50,35 +47,34 @@ class TicTacToeModel:
         })
 
     def auto_move(self):
-        """Escolhe o movimento automaticamente, usando o modelo treinado ou regras básicas."""
         if self.model and len(self.game_data) > 10:
             board_state = [1 if v == "X" else -1 if v == "O" else 0 for v in self.board]
             predicted_move = self.model.predict([board_state])[0]
             if self.board[predicted_move] == " ":
                 return predicted_move
-            else:
-                available_moves = [i for i in range(9) if self.board[i] == " "]
-                return random.choice(available_moves)
-        else:
-            available_moves = [i for i in range(9) if self.board[i] == " "]
-            
-            # pega o centro
-            if self.board[4] == " ":
-                return 4
-            
-            # bloquear o oponente ou vencer
-            for i in available_moves:
-                self.board[i] = self.current_player
-                if self.check_winner() == self.current_player:
-                    self.board[i] = " "
-                    return i
+        
+        available_moves = [i for i in range(9) if self.board[i] == " "]
+        if self.board[4] == " ":
+            return 4
+        
+        for i in available_moves:
+            self.board[i] = self.current_player
+            if self.check_winner() == self.current_player:
                 self.board[i] = " "
-            
-            # aleatória se não houver estratégia óbvia
-            return random.choice(available_moves)
+                return i
+            self.board[i] = " "
+        
+        for i in available_moves:
+            opponent = "O" if self.current_player == "X" else "X"
+            self.board[i] = opponent
+            if self.check_winner() == opponent:
+                self.board[i] = " "
+                return i
+            self.board[i] = " "
+        
+        return random.choice(available_moves)
 
     def play_turn(self):
-        """Realiza o turno do jogador atual."""
         if self.check_winner():
             return
         
@@ -101,12 +97,10 @@ class TicTacToeModel:
                 self.window.after(10, self.play_turn)
             return
 
-        # Troca o jogador
         self.current_player = "O" if self.current_player == "X" else "X"
         self.window.after(10, self.play_turn)
 
     def train_model(self):
-        """Treina o modelo após atingir o número de jogos necessários."""
         if len(self.game_data) < self.min_training_games:
             print("Jogos insuficientes.")
             return
@@ -117,68 +111,52 @@ class TicTacToeModel:
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
-        # Escolha do modelo
         clf, params, model_filename = self.get_model_and_params()
 
-        # Avaliação inicial
-        if self.model_type == "decision_tree_regressor":
-            self.evaluate_model_regressor(clf, X_train, y_train, X_test, y_test, "antes do ajuste")
-        else:
-            self.evaluate_model_classifier(clf, X_train, y_train, X_test, y_test, "antes do ajuste")
+        print("\nAntes do ajuste de hiperparâmetros:")
+        self.evaluate_model_classifier(clf, X_train, y_train, X_test, y_test, "antes do ajuste")
 
-        # Ajuste dos parâmetros com RandomizedSearchCV
-        randomized_search = RandomizedSearchCV(clf, param_distributions=params, cv=2, n_iter=5, n_jobs=-1)
-        randomized_search.fit(X_train, y_train)
+        # Ajuste de hiperparâmetros com GridSearchCV
+        grid_search = GridSearchCV(clf, param_grid=params, cv=5, n_jobs=-1)
+        grid_search.fit(X_train, y_train)
 
-        print(f"Hiperparâmetros: {randomized_search.best_params_}")
+        print(f"Hiperparâmetros: {grid_search.best_params_}")
 
-        # salva modelo otimizado
-        self.model = randomized_search.best_estimator_
-
-        if self.model_type == "decision_tree_regressor":
-            self.evaluate_model_regressor(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
-        else:
-            self.accuracy = self.evaluate_model_classifier(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
+        # Modelo otimizado
+        self.model = grid_search.best_estimator_
+        self.accuracy = self.evaluate_model_classifier(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
 
         with open(model_filename, 'wb') as f:
             pickle.dump(self.model, f)
         print(f"Modelo salvo como '{model_filename}'")
 
     def get_model_and_params(self):
-        """Define o modelo e os parâmetros de hiperparâmetros baseados no tipo de modelo."""
         if self.model_type == "random_forest":
-            clf = RandomForestClassifier()
+            clf = RandomForestClassifier(n_estimators=100, min_samples_split=2, min_samples_leaf=1, max_depth=None)
             params = {
-                'n_estimators': [50, 100, 200],
-                'max_depth': [3, 5, 7, None],
-                'min_samples_split': [2, 5, 10]
+                'n_estimators': [100, 200, 300],
+                'max_depth': [None, 5, 10, 15],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 5]
             }
             model_filename = 'random_forest_model.pkl'
         elif self.model_type == "decision_tree":
             clf = DecisionTreeClassifier()
             params = {
-                'max_depth': [3, 5, 7, None],
+                'max_depth': [None, 5, 10, 15],
                 'min_samples_split': [2, 5, 10]
             }
             model_filename = 'decision_tree_model.pkl'
-        elif self.model_type == "decision_tree_regressor":
-            clf = DecisionTreeRegressor()
-            params = {
-                'max_depth': [3, 5, 7, None],
-                'min_samples_split': [2, 5, 10]
-            }
-            model_filename = 'decision_tree_regressor.pkl'
         return clf, params, model_filename
 
     def evaluate_model_classifier(self, model, X_train, y_train, X_test, y_test, stage):
-        """Avalia o modelo de classificação usando várias métricas."""
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
         accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred, average="micro")
-        recall = recall_score(y_test, y_pred, average="micro")
-        f1 = f1_score(y_test, y_pred, average="micro")
+        precision = precision_score(y_test, y_pred, average="macro")
+        recall = recall_score(y_test, y_pred, average="macro")
+        f1 = f1_score(y_test, y_pred, average="macro")
 
         print(f"\nDesempenho {stage} (Classificação):")
         print(f"Acurácia: {accuracy * 100:.2f}%")
@@ -186,22 +164,9 @@ class TicTacToeModel:
         print(f"Revocação: {recall * 100:.2f}%")
         print(f"F1-Score: {f1 * 100:.2f}%")
         
-        return accuracy  # Retorna a acurácia para uso na atualização do label
-
-    def evaluate_model_regressor(self, model, X_train, y_train, X_test, y_test, stage):
-        """Avalia o modelo de regressão usando MSE e R2 Score."""
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-
-        mse = mean_squared_error(y_test, y_pred)
-        r2 = r2_score(y_test, y_pred)
-
-        print(f"\nDesempenho {stage} (Regressão):")
-        print(f"Erro quadrático médio (MSE): {mse:.4f}")
-        print(f"Coeficiente de determinação (R2 Score): {r2:.4f}")
+        return accuracy
 
     def create_window(self):
-        """Cria a janela gráfica do jogo da velha."""
         self.window = tk.Tk()
         self.window.title("Jogo da Velha - Machine Learning")
         self.window.geometry("600x700")
@@ -218,12 +183,10 @@ class TicTacToeModel:
             button.grid(row=i // 3, column=i % 3, sticky="nsew")
             self.buttons.append(button)
 
-        # Redimensiona colunas
         for i in range(3):
             self.window.grid_columnconfigure(i, weight=1)
             self.window.grid_rowconfigure(i, weight=1)
 
-        # Adiciona o label de informações
         self.info_label = tk.Label(self.window, text=f"Treinando... Jogos: {self.games_played}/{self.max_games}", font=("Helvetica", 16))
         self.info_label.grid(row=3, column=0, columnspan=3, pady=20)
 
@@ -231,11 +194,10 @@ class TicTacToeModel:
         self.window.mainloop()
 
     def update_info_label(self):
-        """Atualiza o label de informações com o progresso do treinamento e acurácia."""
         accuracy_text = f" Acurácia: {self.accuracy * 100:.2f}%" if self.accuracy else ""
         self.info_label.config(text=f"Treinando... Jogos: {self.games_played}/{self.max_games}{accuracy_text}")
 
 if __name__ == "__main__":
-    model_choice = "random_forest"  # ou "decision_tree" ou "decision_tree_regressor"
-    game = TicTacToeModel(max_games=100, model_type=model_choice)
+    model_choice = "random_forest"  #'decision_tree' "random_forest"
+    game = TicTacToeModel(max_games=590, model_type=model_choice)
     game.create_window()
