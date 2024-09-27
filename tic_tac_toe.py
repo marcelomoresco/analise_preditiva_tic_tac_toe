@@ -2,22 +2,22 @@ import pickle
 import tkinter as tk
 import random
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, mean_squared_error, r2_score
 import pandas as pd
 
-class TicTacToe:
+class TicTacToeModel:
     def __init__(self, max_games=10, model_type="random_forest"):
         self.current_player = "X"
         self.board = [" " for _ in range(9)]
         self.buttons = []
         self.game_data = []
-        self.model = None  # modelo para prever jogadas
+        self.model = None  # Modelo para prever jogadas
         self.games_played = 0
         self.max_games = max_games
         self.min_training_games = 50
-        self.model_type = model_type  # "random_forest" ou "decision_tree"
+        self.model_type = model_type  # "random_forest", "decision_tree", "decision_tree_regressor"
         self.window = None
 
     def check_winner(self):
@@ -52,7 +52,11 @@ class TicTacToe:
         if self.model and len(self.game_data) > 10:
             # Transforma o estado do tabuleiro em números
             board_state = [1 if v == "X" else -1 if v == "O" else 0 for v in self.board]
-            predicted_move = self.model.predict([board_state])[0]
+            if self.model_type == "decision_tree_regressor":
+                predicted_move = int(self.model.predict([board_state])[0])  # Para regressão, converte o valor contínuo para inteiro
+            else:
+                predicted_move = self.model.predict([board_state])[0]  # Classificação
+
             # Verifica se o movimento é válido
             if self.board[predicted_move] == " ":
                 return predicted_move
@@ -78,27 +82,26 @@ class TicTacToe:
         winner = self.check_winner()
         if winner:
             self.games_played += 1
-            print(f"Jogo número {self.games_played} completado.")
+            print(f"Jogo {self.games_played} concluído.")
             self.reset_game()
 
             if self.games_played >= self.max_games:
                 self.train_model()
-                print(f"Treinamento finalizado após {self.max_games} jogos.")
+                print(f"Treinamento concluído após {self.max_games} jogos.")
             else:
                 self.window.after(1000, self.play_turn)
             return
 
-        # Troca o turno para o próximo jogador
+        # Troca o jogador
         self.current_player = "O" if self.current_player == "X" else "X"
         self.window.after(1000, self.play_turn)
 
     def train_model(self):
         """Treina o modelo após atingir o número de jogos necessários."""
         if len(self.game_data) < self.min_training_games:
-            print("Jogos insuficientes para treinar o modelo.")
+            print("Jogos insuficientes.")
             return
 
-        # Preparação dos dados
         df = pd.DataFrame(self.game_data)
         X = df['board'].apply(lambda x: [1 if v == "X" else -1 if v == "O" else 0 for v in x]).tolist()
         y = df['move']
@@ -109,21 +112,25 @@ class TicTacToe:
         clf, params, model_filename = self.get_model_and_params()
 
         # Avaliação inicial
-        self.evaluate_model(clf, X_train, y_train, X_test, y_test, "antes do ajuste")
+        if self.model_type == "decision_tree_regressor":
+            self.evaluate_model_regressor(clf, X_train, y_train, X_test, y_test, "antes do ajuste")
+        else:
+            self.evaluate_model_classifier(clf, X_train, y_train, X_test, y_test, "antes do ajuste")
 
         # Ajuste dos parâmetros com RandomizedSearchCV
         randomized_search = RandomizedSearchCV(clf, param_distributions=params, cv=2, n_iter=5, n_jobs=-1)
         randomized_search.fit(X_train, y_train)
 
-        print(f"Melhores hiperparâmetros: {randomized_search.best_params_}")
+        print(f"Hiperparâmetros: {randomized_search.best_params_}")
 
-        # Salvar o modelo otimizado
+        # salva modelo otimizado
         self.model = randomized_search.best_estimator_
 
-        # Avaliação final
-        self.evaluate_model(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
+        if self.model_type == "decision_tree_regressor":
+            self.evaluate_model_regressor(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
+        else:
+            self.evaluate_model_classifier(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
 
-        # Salva o modelo treinado
         with open(model_filename, 'wb') as f:
             pickle.dump(self.model, f)
         print(f"Modelo salvo como '{model_filename}'")
@@ -145,10 +152,17 @@ class TicTacToe:
                 'min_samples_split': [2, 5, 10]
             }
             model_filename = 'decision_tree_model.pkl'
+        elif self.model_type == "decision_tree_regressor":
+            clf = DecisionTreeRegressor()
+            params = {
+                'max_depth': [3, 5, 7, None],
+                'min_samples_split': [2, 5, 10]
+            }
+            model_filename = 'decision_tree_regressor.pkl'
         return clf, params, model_filename
 
-    def evaluate_model(self, model, X_train, y_train, X_test, y_test, stage):
-        """Avalia o modelo usando várias métricas."""
+    def evaluate_model_classifier(self, model, X_train, y_train, X_test, y_test, stage):
+        """Avalia o modelo de classificação usando várias métricas."""
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
 
@@ -157,11 +171,23 @@ class TicTacToe:
         recall = recall_score(y_test, y_pred, average="micro")
         f1 = f1_score(y_test, y_pred, average="micro")
 
-        print(f"\nDesempenho {stage}:")
+        print(f"\nDesempenho {stage} (Classificação):")
         print(f"Acurácia: {accuracy * 100:.2f}%")
         print(f"Precisão: {precision * 100:.2f}%")
         print(f"Revocação: {recall * 100:.2f}%")
         print(f"F1-Score: {f1 * 100:.2f}%")
+
+    def evaluate_model_regressor(self, model, X_train, y_train, X_test, y_test, stage):
+        """Avalia o modelo de regressão usando MSE e R2 Score."""
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+        mse = mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+
+        print(f"\nDesempenho {stage} (Regressão):")
+        print(f"Erro quadrático médio (MSE): {mse:.4f}")
+        print(f"Coeficiente de determinação (R2 Score): {r2:.4f}")
 
     def create_window(self):
         """Cria a janela gráfica do jogo da velha."""
@@ -170,7 +196,6 @@ class TicTacToe:
         self.window.geometry("600x600")
         self.window.configure(bg='#FFD700')
 
-        # Configuração da fonte e dos botões
         button_font = ("Helvetica", 60, "bold")
         button_style = {
             'font': button_font, 'width': 4, 'height': 2,
@@ -182,7 +207,7 @@ class TicTacToe:
             button.grid(row=i // 3, column=i % 3, sticky="nsew")
             self.buttons.append(button)
 
-        # Redimensionar as colunas e linhas
+        # redimensiona colun
         for i in range(3):
             self.window.grid_columnconfigure(i, weight=1)
             self.window.grid_rowconfigure(i, weight=1)
@@ -192,7 +217,6 @@ class TicTacToe:
 
 
 if __name__ == "__main__":
-    # Inicie o jogo com o modelo desejado
-    model_choice = "random_forest"  # ou "decision_tree"
-    game = TicTacToe(max_games=10, model_type=model_choice)
+    model_choice = "random_forest"  # ou "decision_tree" ou "decision_tree_regressor"
+    game = TicTacToeModel(max_games=100, model_type=model_choice)
     game.create_window()
