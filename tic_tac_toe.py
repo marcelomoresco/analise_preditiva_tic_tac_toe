@@ -54,8 +54,8 @@ class TicTacToeModel:
                 return predicted_move
         
         available_moves = [i for i in range(9) if self.board[i] == " "]
-        if self.board[4] == " ":
-            return 4
+        # if self.board[4] == " ":
+        #     return 4
         
         for i in available_moves:
             self.board[i] = self.current_player
@@ -195,6 +195,6 @@ class TicTacToeModel:
         self.info_label.config(text=f"Treinando... Jogos: {self.games_played}/{self.max_games}{accuracy_text}")
 
 if __name__ == "__main__":
-    model_choice = "random_forest"  #'decision_tree' "random_forest"
-    game = TicTacToeModel(max_games=590, model_type=model_choice)
+    model_choice = "decision_tree"  #'decision_tree' "random_forest"
+    game = TicTacToeModel(max_games=700, model_type=model_choice)
     game.create_window()
