@@ -3,7 +3,6 @@ import pickle
 with open('random_forest_model.pkl', 'rb') as f:
     model = pickle.load(f)
 
-# Ver os hiperparâmetros do modelo
 print("Hiperparâmetros do modelo:")
 print(model.get_params())
 
