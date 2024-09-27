@@ -101,10 +101,6 @@ class TicTacToeModel:
         self.window.after(10, self.play_turn)
 
     def train_model(self):
-        if len(self.game_data) < self.min_training_games:
-            print("Jogos insuficientes.")
-            return
-
         df = pd.DataFrame(self.game_data)
         X = df['board'].apply(lambda x: [1 if v == "X" else -1 if v == "O" else 0 for v in x]).tolist()
         y = df['move']
