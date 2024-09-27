@@ -19,6 +19,8 @@ class TicTacToeModel:
         self.min_training_games = 50
         self.model_type = model_type  # "random_forest", "decision_tree", "decision_tree_regressor"
         self.window = None
+        self.info_label = None  # Para mostrar as informações de progresso
+        self.accuracy = None  # Para armazenar a acurácia após o treinamento
 
     def check_winner(self):
         """Verifica as condições de vitória."""
@@ -89,12 +91,12 @@ class TicTacToeModel:
         winner = self.check_winner()
         if winner:
             self.games_played += 1
-            print(f"Jogo {self.games_played} concluído.")
+            self.update_info_label()
             self.reset_game()
 
             if self.games_played >= self.max_games:
                 self.train_model()
-                print(f"Treinamento concluído após {self.max_games} jogos.")
+                print(f"finalizou treinamento {self.max_games} jogos.")
             else:
                 self.window.after(1000, self.play_turn)
             return
@@ -136,7 +138,7 @@ class TicTacToeModel:
         if self.model_type == "decision_tree_regressor":
             self.evaluate_model_regressor(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
         else:
-            self.evaluate_model_classifier(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
+            self.accuracy = self.evaluate_model_classifier(self.model, X_train, y_train, X_test, y_test, "após o ajuste")
 
         with open(model_filename, 'wb') as f:
             pickle.dump(self.model, f)
@@ -183,6 +185,8 @@ class TicTacToeModel:
         print(f"Precisão: {precision * 100:.2f}%")
         print(f"Revocação: {recall * 100:.2f}%")
         print(f"F1-Score: {f1 * 100:.2f}%")
+        
+        return accuracy  # Retorna a acurácia para uso na atualização do label
 
     def evaluate_model_regressor(self, model, X_train, y_train, X_test, y_test, stage):
         """Avalia o modelo de regressão usando MSE e R2 Score."""
@@ -200,7 +204,7 @@ class TicTacToeModel:
         """Cria a janela gráfica do jogo da velha."""
         self.window = tk.Tk()
         self.window.title("Jogo da Velha - Machine Learning")
-        self.window.geometry("600x600")
+        self.window.geometry("600x700")
         self.window.configure(bg='#FFD700')
 
         button_font = ("Helvetica", 60, "bold")
@@ -214,14 +218,22 @@ class TicTacToeModel:
             button.grid(row=i // 3, column=i % 3, sticky="nsew")
             self.buttons.append(button)
 
-        # redimensiona colun
+        # Redimensiona colunas
         for i in range(3):
             self.window.grid_columnconfigure(i, weight=1)
             self.window.grid_rowconfigure(i, weight=1)
 
+        # Adiciona o label de informações
+        self.info_label = tk.Label(self.window, text=f"Treinando... Jogos: {self.games_played}/{self.max_games}", font=("Helvetica", 16))
+        self.info_label.grid(row=3, column=0, columnspan=3, pady=20)
+
         self.window.after(1000, self.play_turn)
         self.window.mainloop()
 
+    def update_info_label(self):
+        """Atualiza o label de informações com o progresso do treinamento e acurácia."""
+        accuracy_text = f" Acurácia: {self.accuracy * 100:.2f}%" if self.accuracy else ""
+        self.info_label.config(text=f"Treinando... Jogos: {self.games_played}/{self.max_games}{accuracy_text}")
 
 if __name__ == "__main__":
     model_choice = "random_forest"  # ou "decision_tree" ou "decision_tree_regressor"
