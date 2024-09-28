@@ -195,6 +195,6 @@ class TicTacToeModel:
         self.info_label.config(text=f"Treinando... Jogos: {self.games_played}/{self.max_games}{accuracy_text}")
 
 if __name__ == "__main__":
-    model_choice = "decision_tree"  #'decision_tree' "random_forest"
-    game = TicTacToeModel(max_games=700, model_type=model_choice)
+    model_choice = "random_forest"  #'decision_tree' "random_forest"
+    game = TicTacToeModel(max_games=100, model_type=model_choice)
     game.create_window()
